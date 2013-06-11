@@ -4,6 +4,7 @@ include $(CLEAR_VARS)
 
 LOCAL_CFLAGS = $(USERLAND_CFLAGS)
 LOCAL_C_INCLUDES += $(USERLAND_INCLUDES)
+LOCAL_C_INCLUDES += $(GRALLOC_BCRM_INCLUDE)
 LOCAL_C_INCLUDES += $(LOCAL_PATH) \
 		$(LOCAL_PATH)/common
 
@@ -49,13 +50,14 @@ LOCAL_SRC_FILES := egl/egl_client_config.c \
 		wf/wfc_client_server_api.c \
 		wf/wfc_client_ipc.c
 LOCAL_PRELINK_MODULE := false
-LOCAL_SHARED_LIBRARIES := libvchiq_arm libvcos libbcm_host libm liblog libvchostif
+LOCAL_SHARED_LIBRARIES := libvchiq_arm libvcos libbcm_host libm liblog libvchostif libgralloc_brcm
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)
 include $(CLEAR_VARS)
 LOCAL_CFLAGS = $(USERLAND_CFLAGS)
 LOCAL_C_INCLUDES += $(USERLAND_INCLUDES)
+LOCAL_C_INCLUDES += $(GRALLOC_BCRM_INCLUDE)
 LOCAL_C_INCLUDES += $(LOCAL_PATH) \
 		$(LOCAL_PATH)/common
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/egl
@@ -101,13 +103,14 @@ LOCAL_SRC_FILES := glxx/glxx_client.c \
 		wf/wfc_client_server_api.c \
 		wf/wfc_client_ipc.c
 LOCAL_PRELINK_MODULE := false
-LOCAL_SHARED_LIBRARIES := libvchiq_arm libvcos libbcm_host libm liblog libvchostif
+LOCAL_SHARED_LIBRARIES := libvchiq_arm libvcos libbcm_host libm liblog libvchostif libgralloc_brcm
 
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
 LOCAL_CFLAGS = $(USERLAND_CFLAGS)
 LOCAL_C_INCLUDES += $(USERLAND_INCLUDES)
+LOCAL_C_INCLUDES += $(GRALLOC_BCRM_INCLUDE)
 LOCAL_C_INCLUDES += $(LOCAL_PATH) \
 		$(LOCAL_PATH)/common
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/egl
@@ -153,7 +156,7 @@ LOCAL_SRC_FILES := glxx/glxx_client.c \
 		wf/wfc_client_server_api.c \
 		wf/wfc_client_ipc.c
 LOCAL_PRELINK_MODULE := false
-LOCAL_SHARED_LIBRARIES := libvchiq_arm libvcos libbcm_host libm liblog libvchostif
+LOCAL_SHARED_LIBRARIES := libvchiq_arm libvcos libbcm_host libm liblog libvchostif libgralloc_brcm
 
 include $(BUILD_SHARED_LIBRARY)
 include $(CLEAR_VARS)
