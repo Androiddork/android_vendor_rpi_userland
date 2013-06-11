@@ -17,10 +17,6 @@ $(warning missing stuff)
 USERLAND_BUILD_MMAL := false
 USERLAND_BUILD_HELLOPI := false
 
-$(warning check which vcos lib is needed)
-USERLAND_BUILD_USE_ARM_VCOS := true
-
-
 USERLAND_CFLAGS := \
 	-D_REENTRANT \
 	-DUSE_VCHIQ_ARM -DVCHI_BULK_ALIGN=1 -DVCHI_BULK_GRANULARITY=1 \

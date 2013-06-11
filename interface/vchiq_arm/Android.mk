@@ -16,9 +16,6 @@ LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)
 
-ifeq ($(USERLAND_BUILD_USE_ARM_VCOS),true)
-	include $(call all-makefiles-under,$(LOCAL_PATH))
-endif
 #add_executable(vchiq_test
 #              vchiq_test.c)
 
