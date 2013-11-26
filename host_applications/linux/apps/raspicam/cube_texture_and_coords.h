@@ -1,6 +1,5 @@
 /*
-Copyright (c) 2013, Broadcom Europe Ltd
-Copyright (c) 2013, James Hughes
+Copyright (c) 2012, Broadcom Europe Ltd
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -26,31 +25,76 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef RASPICLI_H_
-#define RASPICLI_H_
+// Spatial coordinates for the cube
 
-typedef struct
-{
-   int id;
-   char *command;
-   char *abbrev;
-   char *help;
-   int num_parameters;
-} COMMAND_LIST;
+static const GLbyte quadx[6*4*3] = {
+   /* FRONT */
+   -10, -10,  10,
+   10, -10,  10,
+   -10,  10,  10,
+   10,  10,  10,
 
-/// Cross reference structure, mode string against mode id
-typedef struct xref_t
-{
-   char *mode;
-   int mmal_mode;
-} XREF_T;
+   /* BACK */
+   -10, -10, -10,
+   -10,  10, -10,
+   10, -10, -10,
+   10,  10, -10,
 
+   /* LEFT */
+   -10, -10,  10,
+   -10,  10,  10,
+   -10, -10, -10,
+   -10,  10, -10,
 
-void raspicli_display_help(const COMMAND_LIST *commands, const int num_commands);
-int raspicli_get_command_id(const COMMAND_LIST *commands, const int num_commands, const char *arg, int *num_parameters);
+   /* RIGHT */
+   10, -10, -10,
+   10,  10, -10,
+   10, -10,  10,
+   10,  10,  10,
 
-int raspicli_map_xref(const char *str, const XREF_T *map, int num_refs);
-const char *raspicli_unmap_xref(const int en, XREF_T *map, int num_refs);
+   /* TOP */
+   -10,  10,  10,
+   10,  10,  10,
+   -10,  10, -10,
+   10,  10, -10,
 
+   /* BOTTOM */
+   -10, -10,  10,
+   -10, -10, -10,
+   10, -10,  10,
+   10, -10, -10,
+};
 
-#endif
+/** Texture coordinates for the quad. */
+static const GLfloat texCoords[6 * 4 * 2] = {
+   0.f,  0.f,
+   1.f,  0.f,
+   0.f,  1.f,
+   1.f,  1.f,
+
+   0.f,  0.f,
+   1.f,  0.f,
+   0.f,  1.f,
+   1.f,  1.f,
+
+   0.f,  0.f,
+   1.f,  0.f,
+   0.f,  1.f,
+   1.f,  1.f,
+
+   0.f,  0.f,
+   1.f,  0.f,
+   0.f,  1.f,
+   1.f,  1.f,
+
+   0.f,  0.f,
+   1.f,  0.f,
+   0.f,  1.f,
+   1.f,  1.f,
+
+   0.f,  0.f,
+   1.f,  0.f,
+   0.f,  1.f,
+   1.f,  1.f,
+};
+

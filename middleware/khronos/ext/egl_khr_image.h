@@ -58,9 +58,6 @@ typedef struct EGL_IMAGE_T {
       const IMAGE_CONVERT_CLASS_T *convert;
       uint32_t src_updated;
       uint32_t src_converted;
-
-      /* Indicates whether the external source image has been acquired */
-      IMAGECONV_DRIVER_IMAGE_T *acquired_image;
    } external;
 
 } EGL_IMAGE_T;

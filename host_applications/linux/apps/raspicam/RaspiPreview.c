@@ -64,82 +64,96 @@ static int cmdline_commands_size = sizeof(cmdline_commands) / sizeof(cmdline_com
  *
  * @param state Pointer to state control struct
  *
- * @return 0 if failed, pointer to component if successful
+ * @return MMAL_SUCCESS if all OK, something else otherwise
  *
  */
-MMAL_COMPONENT_T *raspipreview_create(RASPIPREVIEW_PARAMETERS *state)
+MMAL_STATUS_T raspipreview_create(RASPIPREVIEW_PARAMETERS *state)
 {
    MMAL_COMPONENT_T *preview = 0;
    MMAL_PORT_T *preview_port = NULL;
    MMAL_STATUS_T status;
 
-   status = mmal_component_create(MMAL_COMPONENT_DEFAULT_VIDEO_RENDERER,
-         &preview);
-
-   if (status != MMAL_SUCCESS)
+   if (!state->wantPreview)
    {
-      vcos_log_error("Unable to create preview component");
-      goto error;
-   }
+      // No preview required, so create a null sink component to take its place
+      status = mmal_component_create("vc.null_sink", &preview);
 
-   if (!preview->input_num)
-   {
-      vcos_log_error("No input ports found on component");
-      status = MMAL_EINVAL;
-      goto error;
-   }
-
-   preview_port = preview->input[0];
-
-   MMAL_DISPLAYREGION_T param;
-   param.hdr.id = MMAL_PARAMETER_DISPLAYREGION;
-   param.hdr.size = sizeof(MMAL_DISPLAYREGION_T);
-
-   param.set = MMAL_DISPLAY_SET_LAYER;
-   param.layer = PREVIEW_LAYER;
-
-   param.set |= MMAL_DISPLAY_SET_ALPHA;
-   param.alpha = state->opacity;
-
-   if (state->wantFullScreenPreview)
-   {
-      param.set |= MMAL_DISPLAY_SET_FULLSCREEN;
-      param.fullscreen = 1;
+      if (status != MMAL_SUCCESS)
+      {
+         vcos_log_error("Unable to create null sink component");
+         goto error;
+      }
    }
    else
    {
-      param.set |= (MMAL_DISPLAY_SET_DEST_RECT | MMAL_DISPLAY_SET_FULLSCREEN);
-      param.fullscreen = 0;
-      param.dest_rect = state->previewWindow;
-   }
+      status = mmal_component_create(MMAL_COMPONENT_DEFAULT_VIDEO_RENDERER,
+            &preview);
 
-   status = mmal_port_parameter_set(preview_port, &param.hdr);
+      if (status != MMAL_SUCCESS)
+      {
+         vcos_log_error("Unable to create preview component");
+         goto error;
+      }
 
-   if (status != MMAL_SUCCESS && status != MMAL_ENOSYS)
-   {
-      vcos_log_error("unable to set preview port parameters (%u)", status);
-      goto error;
+      if (!preview->input_num)
+      {
+         status = MMAL_ENOSYS;
+         vcos_log_error("No input ports found on component");
+         goto error;
+      }
+
+      preview_port = preview->input[0];
+
+      MMAL_DISPLAYREGION_T param;
+      param.hdr.id = MMAL_PARAMETER_DISPLAYREGION;
+      param.hdr.size = sizeof(MMAL_DISPLAYREGION_T);
+
+      param.set = MMAL_DISPLAY_SET_LAYER;
+      param.layer = PREVIEW_LAYER;
+
+      param.set |= MMAL_DISPLAY_SET_ALPHA;
+      param.alpha = state->opacity;
+
+      if (state->wantFullScreenPreview)
+      {
+         param.set |= MMAL_DISPLAY_SET_FULLSCREEN;
+         param.fullscreen = 1;
+      }
+      else
+      {
+         param.set |= (MMAL_DISPLAY_SET_DEST_RECT | MMAL_DISPLAY_SET_FULLSCREEN);
+         param.fullscreen = 0;
+         param.dest_rect = state->previewWindow;
+      }
+
+      status = mmal_port_parameter_set(preview_port, &param.hdr);
+
+      if (status != MMAL_SUCCESS && status != MMAL_ENOSYS)
+      {
+         vcos_log_error("unable to set preview port parameters (%u)", status);
+         goto error;
+      }
    }
 
    /* Enable component */
    status = mmal_component_enable(preview);
 
-   if (status)
+   if (status != MMAL_SUCCESS)
    {
-      vcos_log_error("Unable to enable preview component (%u)", status);
+      vcos_log_error("Unable to enable preview/null sink component (%u)", status);
       goto error;
    }
 
    state->preview_component = preview;
 
-   return preview;
+   return status;
 
-   error:
+error:
 
    if (preview)
       mmal_component_destroy(preview);
 
-   return 0;
+   return status;
 }
 
 

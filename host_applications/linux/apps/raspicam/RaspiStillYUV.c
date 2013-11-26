@@ -27,8 +27,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 /*
- * \file RaspiStill.c
- * Command line program to capture a still frame and encode it to file.
+ * \file RaspiStillYUV.c
+ * Command line program to capture a still frame and dump uncompressed it to file.
  * Also optionally display a preview/viewfinder of current camera input.
  *
  * \date 4th March 2013
@@ -53,8 +53,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdlib.h>
 #include <string.h>
 #include <memory.h>
+#include <sysexits.h>
 
-#define VERSION_STRING "v1.1"
+#define VERSION_STRING "v1.3.2"
 
 #include "bcm_host.h"
 #include "interface/vcos/vcos.h"
@@ -101,11 +102,14 @@ typedef struct
    int height;                         /// requested height of image
    char *filename;                     /// filename of output file
    int verbose;                        /// !0 if want detailed run information
+   int timelapse;                      /// Delay between each picture in timelapse mode. If 0, disable timelapse
+   int useRGB;                         /// Output RGB data rather than YUV
 
    RASPIPREVIEW_PARAMETERS preview_parameters;    /// Preview setup parameters
    RASPICAM_CAMERA_PARAMETERS camera_parameters; /// Camera setup parameters
 
    MMAL_COMPONENT_T *camera_component;    /// Pointer to the camera component
+   MMAL_COMPONENT_T *null_sink_component;    /// Pointer to the camera component
    MMAL_CONNECTION_T *preview_connection; /// Pointer to the connection from camera to preview
    MMAL_POOL_T *camera_pool;              /// Pointer to the pool of buffers used by camera stills port
 } RASPISTILLYUV_STATE;
@@ -129,6 +133,8 @@ static void display_valid_parameters(char *app_name);
 #define CommandOutput       3
 #define CommandVerbose      4
 #define CommandTimeout      5
+#define CommandTimelapse    6
+#define CommandUseRGB       7
 
 static COMMAND_LIST cmdline_commands[] =
 {
@@ -138,6 +144,8 @@ static COMMAND_LIST cmdline_commands[] =
    { CommandOutput,  "-output",     "o",  "Output filename <filename>. If not specifed, no image is saved", 1 },
    { CommandVerbose, "-verbose",    "v",  "Output verbose information during run", 0 },
    { CommandTimeout, "-timeout",    "t",  "Time (in ms) before takes picture and shuts down. If not specified set to 5s", 1 },
+   { CommandTimelapse,"-timelapse", "tl", "Timelapse mode. Takes a picture every <t>ms", 1},
+   { CommandUseRGB,  "-rgb",        "rgb","Save as RGB data rather than YUV", 0},
 };
 
 static int cmdline_commands_size = sizeof(cmdline_commands) / sizeof(cmdline_commands[0]);
@@ -162,6 +170,8 @@ static void default_status(RASPISTILLYUV_STATE *state)
    state->timeout = 5000; // 5s delay before take image
    state->width = 2592;
    state->height = 1944;
+   state->timelapse = 0;
+
    // Setup preview window defaults
    raspipreview_set_defaults(&state->preview_parameters);
 
@@ -170,7 +180,7 @@ static void default_status(RASPISTILLYUV_STATE *state)
 }
 
 /**
- * Dump image state parameters to printf. Used for debugging
+ * Dump image state parameters to stderr. Used for debugging
  *
  * @param state Pointer to state structure to assign defaults to
  */
@@ -183,7 +193,7 @@ static void dump_status(RASPISTILLYUV_STATE *state)
    }
 
    fprintf(stderr, "Width %d, Height %d, filename %s\n", state->width, state->height, state->filename);
-   fprintf(stderr, "Time delay %d\n", state->timeout);
+   fprintf(stderr, "Time delay %d, Timelapse %d\n", state->timeout, state->timelapse);
 
    raspipreview_dump_parameters(&state->preview_parameters);
    raspicamcontrol_dump_parameters(&state->camera_parameters);
@@ -280,6 +290,17 @@ static int parse_cmdline(int argc, const char **argv, RASPISTILLYUV_STATE *state
          break;
       }
 
+      case CommandTimelapse:
+         if (sscanf(argv[i + 1], "%u", &state->timelapse) != 1)
+            valid = 0;
+         else
+            i++;
+         break;
+
+      case CommandUseRGB: // display lots of data during run
+         state->useRGB = 1;
+         break;
+
       default:
       {
          // Try parsing for any image specific parameters
@@ -371,9 +392,9 @@ static void camera_control_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf
  */
 static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 {
-   MMAL_STATUS_T status;
    int complete = 0;
    // We pass our file handle and other stuff in via the userdata field.
+
 
    PORT_USERDATA *pData = (PORT_USERDATA *)port->userdata;
 
@@ -398,7 +419,7 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
       }
 
       // Check end of frame or error
-      if (buffer->flags & (MMAL_BUFFER_HEADER_FLAG_FRAME_END | MMAL_BUFFER_HEADER_FLAG_EOS | MMAL_BUFFER_HEADER_FLAG_TRANSMISSION_FAILED))
+      if (buffer->flags & (MMAL_BUFFER_HEADER_FLAG_FRAME_END | MMAL_BUFFER_HEADER_FLAG_TRANSMISSION_FAILED))
          complete = 1;
    }
    else
@@ -412,11 +433,14 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
    // and send one back to the port (if still open)
    if (port->is_enabled)
    {
+      MMAL_STATUS_T status;
       MMAL_BUFFER_HEADER_T *new_buffer = mmal_queue_get(pData->pstate->camera_pool->queue);
 
       // and back to the port from there.
       if (new_buffer)
-      status = mmal_port_send_buffer(port, new_buffer);
+      {
+         status = mmal_port_send_buffer(port, new_buffer);
+      }
 
       if (!new_buffer || status != MMAL_SUCCESS)
          vcos_log_error("Unable to return the buffer to the camera still port");
@@ -437,7 +461,7 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
  * @return 0 if failed, pointer to component if successful
  *
  */
-static MMAL_COMPONENT_T *create_camera_component(RASPISTILLYUV_STATE *state)
+static MMAL_STATUS_T create_camera_component(RASPISTILLYUV_STATE *state)
 {
    MMAL_COMPONENT_T *camera = 0;
    MMAL_ES_FORMAT_T *format;
@@ -481,7 +505,7 @@ static MMAL_COMPONENT_T *create_camera_component(RASPISTILLYUV_STATE *state)
          .max_stills_w = state->width,
          .max_stills_h = state->height,
          .stills_yuv422 = 0,
-         .one_shot_stills = 0,
+         .one_shot_stills = 1,
          .max_preview_video_w = state->preview_parameters.previewWindow.width,
          .max_preview_video_h = state->preview_parameters.previewWindow.height,
          .num_preview_video_frames = 3,
@@ -535,8 +559,16 @@ static MMAL_COMPONENT_T *create_camera_component(RASPISTILLYUV_STATE *state)
    format = still_port->format;
 
    // Set our stills format on the stills  port
-   format->encoding = MMAL_ENCODING_I420;
-   format->encoding_variant = MMAL_ENCODING_I420;
+   if (state->useRGB)
+   {
+      format->encoding = MMAL_ENCODING_BGR24;
+      format->encoding_variant = MMAL_ENCODING_BGR24;
+   }
+   else
+   {
+      format->encoding = MMAL_ENCODING_I420;
+      format->encoding_variant = MMAL_ENCODING_I420;
+   }
    format->es->video.width = state->width;
    format->es->video.height = state->height;
    format->es->video.crop.x = 0;
@@ -582,14 +614,14 @@ static MMAL_COMPONENT_T *create_camera_component(RASPISTILLYUV_STATE *state)
    if (state->verbose)
       fprintf(stderr, "Camera component done\n");
 
-   return camera;
+   return status;
 
 error:
 
    if (camera)
       mmal_component_destroy(camera);
 
-   return 0;
+   return status;
 }
 
 /**
@@ -667,8 +699,9 @@ int main(int argc, const char **argv)
 {
    // Our main data storage vessel..
    RASPISTILLYUV_STATE state;
+   int exit_code = EX_OK;
 
-   MMAL_STATUS_T status = -1;
+   MMAL_STATUS_T status = MMAL_SUCCESS;
    MMAL_PORT_T *camera_preview_port = NULL;
    MMAL_PORT_T *camera_video_port = NULL;
    MMAL_PORT_T *camera_still_port = NULL;
@@ -688,7 +721,7 @@ int main(int argc, const char **argv)
       fprintf(stderr, "\n%s Camera App %s\n\n", basename(argv[0]), VERSION_STRING);
 
       display_valid_parameters(basename(argv[0]));
-      exit(0);
+      exit(EX_USAGE);
    }
 
    default_status(&state);
@@ -696,7 +729,8 @@ int main(int argc, const char **argv)
    // Parse the command line and put options in to our status structure
    if (parse_cmdline(argc, argv, &state))
    {
-      exit(0);
+      status = -1;
+      exit(EX_USAGE);
    }
 
    if (state.verbose)
@@ -710,14 +744,16 @@ int main(int argc, const char **argv)
    // Camera is different in stills/video, but preview
    // is the same so handed off to a separate module
 
-   if (!create_camera_component(&state))
+   if ((status = create_camera_component(&state)) != MMAL_SUCCESS)
    {
       vcos_log_error("%s: Failed to create camera component", __func__);
+      exit_code = EX_SOFTWARE;
    }
-   else if ( !raspipreview_create(&state.preview_parameters))
+   else if ((status = raspipreview_create(&state.preview_parameters)) != MMAL_SUCCESS)
    {
       vcos_log_error("%s: Failed to create preview component", __func__);
       destroy_camera_component(&state);
+      exit_code = EX_SOFTWARE;
    }
    else
    {
@@ -729,23 +765,13 @@ int main(int argc, const char **argv)
       camera_preview_port = state.camera_component->output[MMAL_CAMERA_PREVIEW_PORT];
       camera_video_port   = state.camera_component->output[MMAL_CAMERA_VIDEO_PORT];
       camera_still_port   = state.camera_component->output[MMAL_CAMERA_CAPTURE_PORT];
+
+      // Note we are lucky that the preview and null sink components use the same input port
+      // so we can simple do this without conditionals
       preview_input_port  = state.preview_parameters.preview_component->input[0];
 
-      if (state.preview_parameters.wantPreview )
-      {
-         if (state.verbose)
-         {
-            fprintf(stderr, "Connecting camera preview port to preview input port\n");
-            fprintf(stderr, "Starting video preview\n");
-         }
-
-         // Connect camera to preview
-         status = connect_ports(camera_preview_port, preview_input_port, &state.preview_connection);
-      }
-      else
-      {
-         status = MMAL_SUCCESS;
-      }
+      // Connect camera to preview (which might be a null_sink if no preview required)
+      status = connect_ports(camera_preview_port, preview_input_port, &state.preview_connection);
 
       if (status == MMAL_SUCCESS)
       {
@@ -759,7 +785,7 @@ int main(int argc, const char **argv)
             output_file = fopen(state.filename, "wb");
             if (!output_file)
             {
-               // Notify user, carry on but discarding encoded output buffers
+               // Notify user, carry on but discarding output buffers
                vcos_log_error("%s: Error opening output file: %s\nNo output file will be generated\n", __func__, state.filename);
             }
          }
@@ -788,49 +814,99 @@ int main(int argc, const char **argv)
          if (state.verbose)
             fprintf(stderr, "Starting video preview\n");
 
-         // Send all the buffers to the encoder output port
+         int num_iterations =  state.timelapse ? state.timeout / state.timelapse : 1;
+         int frame;
+         FILE *output_file = NULL;
+
+         for (frame = 1;frame<=num_iterations; frame++)
          {
-            int num = mmal_queue_length(state.camera_pool->queue);
-            int q;
-            for (q=0;q<num;q++)
-            {
-               MMAL_BUFFER_HEADER_T *buffer = mmal_queue_get(state.camera_pool->queue);
-
-               if (!buffer)
-                  vcos_log_error("Unable to get a required buffer %d from pool queue", q);
-
-               if (mmal_port_send_buffer(camera_still_port, buffer)!= MMAL_SUCCESS)
-                  vcos_log_error("Unable to send a buffer to encoder output port (%d)", q);
-
-            }
-         }
-
-         // Now wait until we need to do the capture
-         vcos_sleep(state.timeout);
-
-         // And only do the capture if we have specified a filename and its opened OK
-         if (output_file)
-         {
-            if (state.verbose)
-               fprintf(stderr, "Starting capture\n");
-
-            // Fire the capture
-            if (mmal_port_parameter_set_boolean(camera_still_port, MMAL_PARAMETER_CAPTURE, 1) != MMAL_SUCCESS)
-            {
-               vcos_log_error("%s: Failed to start capture", __func__);
-            }
+            if (state.timelapse)
+               vcos_sleep(state.timelapse);
             else
+               vcos_sleep(state.timeout);
+
+            // Open the file
+            if (state.filename)
             {
-               // Wait for capture to complete
-               // For some reason using vcos_semaphore_wait_timeout sometimes returns immediately with bad parameter error
-               // even though it appears to be all correct, so reverting to untimed one until figure out why its erratic
-               vcos_semaphore_wait(&callback_data.complete_semaphore);
+               if (state.filename[0] == '-')
+               {
+                  output_file = stdout;
+
+                  // Ensure we don't upset the output stream with diagnostics/info
+                  state.verbose = 0;
+               }
+               else
+               {
+                  char *use_filename = state.filename;
+
+                  if (state.timelapse)
+                     asprintf(&use_filename, state.filename, frame);
+
+                  if (state.verbose)
+                     fprintf(stderr, "Opening output file %s\n", use_filename);
+
+                  output_file = fopen(use_filename, "wb");
+
+                  if (!output_file)
+                  {
+                     // Notify user, carry on but discarding encoded output buffers
+                     vcos_log_error("%s: Error opening output file: %s\nNo output file will be generated\n", __func__, use_filename);
+                  }
+
+                  // asprintf used in timelapse mode allocates its own memory which we need to free
+                  if (state.timelapse)
+                     free(use_filename);
+               }
+
+               callback_data.file_handle = output_file;
+            }
+
+            // And only do the capture if we have specified a filename and its opened OK
+            if (output_file)
+            {
+               // Send all the buffers to the camera output port
+               {
+                  int num = mmal_queue_length(state.camera_pool->queue);
+                  int q;
+
+                  for (q=0;q<num;q++)
+                  {
+                     MMAL_BUFFER_HEADER_T *buffer = mmal_queue_get(state.camera_pool->queue);
+
+                     if (!buffer)
+                        vcos_log_error("Unable to get a required buffer %d from pool queue", q);
+
+                     if (mmal_port_send_buffer(camera_still_port, buffer)!= MMAL_SUCCESS)
+                        vcos_log_error("Unable to send a buffer to camera output port (%d)", q);
+                  }
+               }
 
                if (state.verbose)
-                  fprintf(stderr, "Finished capture\n");
+                  fprintf(stderr, "Starting capture %d\n", frame);
+
+               // Fire the capture
+               if (mmal_port_parameter_set_boolean(camera_still_port, MMAL_PARAMETER_CAPTURE, 1) != MMAL_SUCCESS)
+               {
+                  vcos_log_error("%s: Failed to start capture", __func__);
+               }
+               else
+               {
+                  // Wait for capture to complete
+                  // For some reason using vcos_semaphore_wait_timeout sometimes returns immediately with bad parameter error
+                  // even though it appears to be all correct, so reverting to untimed one until figure out why its erratic
+                  vcos_semaphore_wait(&callback_data.complete_semaphore);
+
+                  if (state.verbose)
+                     fprintf(stderr, "Finished capture %d\n", frame);
+               }
+
+               // Ensure we don't die if get callback with no open file
+               callback_data.file_handle = NULL;
+
+               if (output_file != stdout)
+                  fclose(output_file);
             }
          }
-
          vcos_semaphore_delete(&callback_data.complete_semaphore);
       }
       else
@@ -852,8 +928,7 @@ error:
       // Disable all our ports that are not handled by connections
       check_disable_port(camera_video_port);
 
-      if (state.preview_parameters.wantPreview )
-         mmal_connection_destroy(state.preview_connection);
+      mmal_connection_destroy(state.preview_connection);
 
       /* Disable components */
       if (state.preview_parameters.preview_component)
@@ -868,10 +943,11 @@ error:
       if (state.verbose)
          fprintf(stderr, "Close down completed, all components disconnected, disabled and destroyed\n\n");
    }
-   if (status != 0)
+
+   if (status != MMAL_SUCCESS)
       raspicamcontrol_check_configuration(128);
 
-   return 0;
+   return exit_code;
 }
 
 

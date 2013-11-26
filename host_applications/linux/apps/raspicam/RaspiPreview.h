@@ -34,6 +34,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define PREVIEW_FRAME_RATE_NUM 30
 #define PREVIEW_FRAME_RATE_DEN 1
 
+#define FULL_RES_PREVIEW_FRAME_RATE_NUM 15
+#define FULL_RES_PREVIEW_FRAME_RATE_DEN 1
+
 
 typedef struct
 {
@@ -44,7 +47,7 @@ typedef struct
    MMAL_COMPONENT_T *preview_component;   /// Pointer to the created preview display component
 } RASPIPREVIEW_PARAMETERS;
 
-MMAL_COMPONENT_T *raspipreview_create(RASPIPREVIEW_PARAMETERS *state);
+MMAL_STATUS_T raspipreview_create(RASPIPREVIEW_PARAMETERS *state);
 void raspipreview_destroy(RASPIPREVIEW_PARAMETERS *state);
 void raspipreview_set_defaults(RASPIPREVIEW_PARAMETERS *state);
 void raspipreview_dump_parameters(RASPIPREVIEW_PARAMETERS *state);

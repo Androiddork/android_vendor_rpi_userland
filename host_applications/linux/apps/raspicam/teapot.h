@@ -1,6 +1,5 @@
 /*
-Copyright (c) 2013, Broadcom Europe Ltd
-Copyright (c) 2013, James Hughes
+Copyright (c) 2012-2013, Broadcom Europe Ltd
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -26,31 +25,11 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef RASPICLI_H_
-#define RASPICLI_H_
+#ifndef TEAPOT_H
+#define TEAPOT_H
 
-typedef struct
-{
-   int id;
-   char *command;
-   char *abbrev;
-   char *help;
-   int num_parameters;
-} COMMAND_LIST;
+#include "RaspiTex.h"
 
-/// Cross reference structure, mode string against mode id
-typedef struct xref_t
-{
-   char *mode;
-   int mmal_mode;
-} XREF_T;
+int teapot_open(RASPITEX_STATE *raspitex_state);
 
-
-void raspicli_display_help(const COMMAND_LIST *commands, const int num_commands);
-int raspicli_get_command_id(const COMMAND_LIST *commands, const int num_commands, const char *arg, int *num_parameters);
-
-int raspicli_map_xref(const char *str, const XREF_T *map, int num_refs);
-const char *raspicli_unmap_xref(const int en, XREF_T *map, int num_refs);
-
-
-#endif
+#endif /* TEAPOT_H */

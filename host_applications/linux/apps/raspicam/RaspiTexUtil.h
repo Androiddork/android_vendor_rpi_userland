@@ -1,6 +1,6 @@
 /*
 Copyright (c) 2013, Broadcom Europe Ltd
-Copyright (c) 2013, James Hughes
+Copyright (c) 2013, Tim Gover
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -26,31 +26,50 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef RASPICLI_H_
-#define RASPICLI_H_
+#ifndef RASPITEX_UTIL_H
+#define RASPITEX_UTIL_H
 
-typedef struct
-{
-   int id;
-   char *command;
-   char *abbrev;
-   char *help;
-   int num_parameters;
-} COMMAND_LIST;
+#define VCOS_LOG_CATEGORY (&raspitex_log_category)
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+#include "RaspiTex.h"
+#include "interface/vcos/vcos.h"
 
-/// Cross reference structure, mode string against mode id
-typedef struct xref_t
-{
-   char *mode;
-   int mmal_mode;
-} XREF_T;
+extern VCOS_LOG_CAT_T raspitex_log_category;
 
+/* Uncomment to enable extra GL error checking */
+//#define CHECK_GL_ERRORS
+#if defined(CHECK_GL_ERRORS)
+#define GLCHK(X) \
+do { \
+    GLenum err = GL_NO_ERROR; \
+    X; \
+   while ((err = glGetError())) \
+   { \
+      vcos_log_trace("GL error 0x%x in " #X "file %s line %d", err, __FILE__,__LINE__); \
+      vcos_assert(err == GL_NO_ERROR); \
+      exit(err); \
+   } \
+} \
+while(0)
+#else
+#define GLCHK(X) X
+#endif /* CHECK_GL_ERRORS */
 
-void raspicli_display_help(const COMMAND_LIST *commands, const int num_commands);
-int raspicli_get_command_id(const COMMAND_LIST *commands, const int num_commands, const char *arg, int *num_parameters);
+/* Default GL scene ops functions */
+int raspitexutil_create_native_window(RASPITEX_STATE *raspitex_state);
+int raspitexutil_gl_init_1_0(RASPITEX_STATE *raspitex_state);
+int raspitexutil_gl_init_2_0(RASPITEX_STATE *raspitex_state);
+int raspitexutil_update_model(RASPITEX_STATE* raspitex_state);
+int raspitexutil_redraw(RASPITEX_STATE* raspitex_state);
+void raspitexutil_gl_term(RASPITEX_STATE *raspitex_state);
+void raspitexutil_destroy_native_window(RASPITEX_STATE *raspitex_state);
+int raspitexutil_update_texture(RASPITEX_STATE *raspitex_state,
+      EGLClientBuffer mm_buf);
+void raspitexutil_close(RASPITEX_STATE* raspitex_state);
 
-int raspicli_map_xref(const char *str, const XREF_T *map, int num_refs);
-const char *raspicli_unmap_xref(const int en, XREF_T *map, int num_refs);
-
-
-#endif
+#endif /* RASPITEX_UTIL_H */

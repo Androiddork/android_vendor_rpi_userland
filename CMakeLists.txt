@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 2.8)
 project(vmcs_host_apps)
 
 set(BUILD_MMAL TRUE)
+set(BUILD_MMAL_COMPONENTS FALSE)
 if (ALL_APPS)
  set(BUILD_MMAL_APPS TRUE)
 else()
@@ -41,7 +42,7 @@ add_definitions(-D_REENTRANT)
 add_definitions(-DUSE_VCHIQ_ARM -DVCHI_BULK_ALIGN=1 -DVCHI_BULK_GRANULARITY=1)
 add_definitions(-DOMX_SKIP64BIT)
 add_definitions(-DEGL_SERVER_DISPMANX)
-add_definitions(-D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE)
+add_definitions(-D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64)
 
 # do we actually need this?
 add_definitions(-D__VIDEOCORE4__)
@@ -104,10 +105,6 @@ endif()
 
 # add linux apps
 add_subdirectory(host_applications/linux)
-
-# Debug sym for mmal-vc-diag and vcdbg
-#add_subdirectory(host_applications/linux/libs/debug_sym)
-
 
 set(vmcs_host_apps_VERSION_MAJOR 1)
 set(vmcs_host_apps_VERSION_MINOR 0)
