@@ -153,6 +153,10 @@ by an attribute value"
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(ANDROID)
+#include <gralloc_priv.h>
+#include <gralloc_brcm.h>
+#endif
 
 #include "interface/khronos/egl/egl_client_cr.c"
 
@@ -584,8 +588,12 @@ EGLAPI EGLSurface EGLAPIENTRY eglCreateWindowSurface(EGLDisplay dpy, EGLConfig c
 
    if (CLIENT_LOCK_AND_GET_STATES(dpy, &thread, &process))
    {
-      uint32_t handle = platform_get_handle(dpy, win);
-
+#ifdef ANDROID
+       EGL_DISPMANX_WINDOW_T *xwin = gralloc_private_handle_from_native_window(win);
+#else
+       EGL_DISPMANX_WINDOW_T *xwin = win;
+#endif
+      uint32_t handle = platform_get_handle(dpy, xwin);
       if ((int)(size_t)config < 1 || (int)(size_t)config > EGL_MAX_CONFIGS) {
          thread->error = EGL_BAD_CONFIG;
          result = EGL_NO_SURFACE;
@@ -609,7 +617,7 @@ EGLAPI EGLSurface EGLAPIENTRY eglCreateWindowSurface(EGLDisplay dpy, EGLConfig c
             uint32_t swapchain_count;
 
             platform_get_dimensions(dpy,
-                  win, &width, &height, &swapchain_count);
+                  xwin, &width, &height, &swapchain_count);
 
             if (swapchain_count > 0)
                num_buffers = swapchain_count;
@@ -636,7 +644,7 @@ EGLAPI EGLSurface EGLAPIENTRY eglCreateWindowSurface(EGLDisplay dpy, EGLConfig c
 #endif
                                 width, height,
                                 config,
-                                win,
+                                xwin,
                                 handle,
                                 false,
                                 false,
