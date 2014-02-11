@@ -330,9 +330,13 @@ EGLAPI EGLImageKHR EGLAPIENTRY eglCreateImageKHR (EGLDisplay dpy, EGLContext ctx
    if (result == EGL_NO_IMAGE_KHR) {
       vcos_log_error("%s:  failed to create image for buffer %p target %d error 0x%x",
             __FUNCTION__, buffer, target, thread->error);
+#if EGL_ANDROID_image_native_buffer
    } else {
       vcos_log_trace("%s: returning EGLImageKHR %p for buffer %p target %d",
             __FUNCTION__, result, buffer, target);
+      gralloc_private_handle_t *gpriv = gralloc_private_handle_from_client_buffer(buffer);
+      gralloc_set_egl_image(gpriv, result);
+#endif
    }
    return result;
 }
