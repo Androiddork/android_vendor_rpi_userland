@@ -224,8 +224,8 @@ EGLAPI EGLImageKHR EGLAPIENTRY eglCreateImageKHR (EGLDisplay dpy, EGLContext ctx
                      target = EGL_IMAGE_BRCM_MULTIMEDIA;
                   else
                      target = EGL_IMAGE_BRCM_RAW_PIXELS;
-                  buffer_width = gpriv->w;
-                  buffer_height = gpriv->h;
+                  buffer_width = gpriv->window.width;
+                  buffer_height = gpriv->window.height;
                   buffer_stride = gpriv->stride;
 
                   buf[0] = gralloc_private_handle_get_vc_handle(gpriv);
